@@ -1,6 +1,74 @@
 import Image from "next/image";
+import { RSocketConnector } from "rsocket-core";
+import { WebsocketClientTransport } from "rsocket-websocket-client";
+import {encodeCompositeMetadata, encodeRoute, WellKnownMimeType} from "rsocket-composite-metadata";
+import MESSAGE_RSOCKET_ROUTING = WellKnownMimeType.MESSAGE_RSOCKET_ROUTING;
 
-export default function Home() {
+const connector = new RSocketConnector({
+  setup: {
+    // keepAlive: 10000,
+    // lifetime: 100000,
+    dataMimeType: "application/json",
+    metadataMimeType: "message/x.rsocket.composite-metadata.v0"
+  },
+  transport: new WebsocketClientTransport({
+    url: "ws://localhost:7000",
+    wsCreator: (url) => new WebSocket(url),
+    debug: true,
+  }),
+});
+
+export default async function Home() {
+
+  function createRoute(route?: string) {
+    let compositeMetaData = undefined;
+    if (route) {
+      const encodedRoute = encodeRoute(route);
+
+      const map = new Map<WellKnownMimeType, Buffer>();
+      map.set(MESSAGE_RSOCKET_ROUTING, encodedRoute);
+      compositeMetaData = encodeCompositeMetadata(map);
+    }
+    return compositeMetaData;
+  }
+  // debugger;
+
+  const rsocket = await connector.connect();
+
+  const requester = rsocket.requestChannel(
+    {
+      data: Buffer.from(JSON.stringify({ 'name': 'example', 'takeUntil': 2})),
+      metadata: createRoute('sensor-gaming/real-game')
+    },
+    10,
+    false,
+    {
+      onError: (e) => {
+        console.error(e);
+      },
+      onNext: (payload, isComplete) => {
+        console.log(
+          `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
+        );
+      },
+      onComplete: () => {
+        console.log('Completed!');
+      },
+      onExtension: () => { },
+      request: (n) => {
+        console.log(`request(${n})`);
+        // requester.onNext(
+        //   {
+        //     data: Buffer.from("Message"),
+        //   },
+        //   true
+        // );
+      },
+      cancel: () => {
+        console.warn('Canceled!');},
+    }
+  );
+
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
