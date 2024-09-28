@@ -11,7 +11,7 @@ const connector = new RSocketConnector({
     metadataMimeType: "message/x.rsocket.composite-metadata.v0"
   },
   transport: new WebsocketClientTransport({
-    url: "ws://localhost:7000",
+    url: process.env.WEBSOCKET_SERVER_HOST || "ws://localhost:7000",
     wsCreator: (url) => new WebSocket(url),
     debug: true,
   }),
