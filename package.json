@@ -9,13 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "cloudevents": "^8.0.2",
     "next": "14.2.13",
     "react": "^18",
     "react-dom": "^18",
-    "rsocket-core": "^1.0.0-alpha.3",
     "rsocket-adapter-rxjs": "^1.0.0-alpha.4",
-    "rsocket-websocket-client": "^1.0.0-alpha.3",
-    "rsocket-composite-metadata": "^1.0.0-alpha.3"
+    "rsocket-composite-metadata": "^1.0.0-alpha.3",
+    "rsocket-core": "^1.0.0-alpha.3",
+    "rsocket-websocket-client": "^1.0.0-alpha.3"
   },
   "devDependencies": {
     "@types/node": "^20",

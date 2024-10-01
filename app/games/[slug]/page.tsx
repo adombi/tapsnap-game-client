@@ -1,13 +1,17 @@
+'use client';
+
 import {RSocketConnector} from "rsocket-core";
 import {WebsocketClientTransport} from "rsocket-websocket-client";
 import MESSAGE_RSOCKET_ROUTING = WellKnownMimeType.MESSAGE_RSOCKET_ROUTING;
 import {encodeCompositeMetadata, encodeRoute, WellKnownMimeType} from "rsocket-composite-metadata";
+import React from "react";
+import { CloudEvent } from "cloudevents";
 
 const connector = new RSocketConnector({
   setup: {
     // keepAlive: 10000,
     // lifetime: 100000,
-    dataMimeType: "application/json",
+    dataMimeType: "application/cloudevents+json",
     metadataMimeType: "message/x.rsocket.composite-metadata.v0"
   },
   transport: new WebsocketClientTransport({
@@ -35,7 +39,7 @@ export default async function Page({ params }: { params: { slug: string } }) {
 
   const requester = rsocket.requestChannel(
     {
-      data: Buffer.from(JSON.stringify({ 'name': 'example', 'takeUntil': 2})),
+      data: Buffer.from(new CloudEvent<User>({ id: crypto.randomUUID(), source: "asdf", type: "java.lang.String", data: {"name": "player1"}}).toString()),
       metadata: createRoute('sensor-gaming/real-game')
     },
     10,
@@ -67,5 +71,20 @@ export default async function Page({ params }: { params: { slug: string } }) {
     }
   );
 
-  return <p>Post: {params.slug}</p>
+  const cloudEvent = new CloudEvent<User>({
+    id: crypto.randomUUID(), source: "asdf", type: "java.lang.String", data: {"name": "Start"}
+  });
+  return <>
+      <p>Game: {params.slug}</p>
+      <button
+        type="button"
+        className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
+        onClick={() => requester.onNext({
+          data: Buffer.from(cloudEvent.toString()),
+          metadata: createRoute('sensor-gaming/real-game')
+        }, false)}
+      >
+        Start
+      </button>
+    </>
 }

@@ -5,5 +5,5 @@ interface Game {
 
 interface User {
   name: string
-  ready: boolean
+  // ready: boolean
 }
