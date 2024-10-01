@@ -4,8 +4,14 @@ import {RSocketConnector} from "rsocket-core";
 import {WebsocketClientTransport} from "rsocket-websocket-client";
 import MESSAGE_RSOCKET_ROUTING = WellKnownMimeType.MESSAGE_RSOCKET_ROUTING;
 import {encodeCompositeMetadata, encodeRoute, WellKnownMimeType} from "rsocket-composite-metadata";
-import React from "react";
+import React, {useEffect, useState} from "react";
 import { CloudEvent } from "cloudevents";
+import {
+  Cancellable,
+  OnExtensionSubscriber,
+  OnNextSubscriber,
+  OnTerminalSubscriber, Requestable
+} from "rsocket-core/dist/RSocket";
 
 const connector = new RSocketConnector({
   setup: {
@@ -21,7 +27,8 @@ const connector = new RSocketConnector({
   }),
 });
 
-export default async function Page({ params }: { params: { slug: string } }) {
+export default function Page({ params }: { params: { slug: string } }) {
+  const [requester, setRequester] = useState<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>();
   function createRoute(route?: string) {
     let compositeMetaData = undefined;
     if (route) {
@@ -33,43 +40,65 @@ export default async function Page({ params }: { params: { slug: string } }) {
     }
     return compositeMetaData;
   }
-  // debugger;
 
-  const rsocket = await connector.connect();
+  useEffect(() => {
+    let ignore = false
 
-  const requester = rsocket.requestChannel(
-    {
-      data: Buffer.from(new CloudEvent<User>({ id: crypto.randomUUID(), source: "asdf", type: "java.lang.String", data: {"name": "player1"}}).toString()),
-      metadata: createRoute('sensor-gaming/real-game')
-    },
-    10,
-    false,
-    {
-      onError: (e) => {
-        console.error(e);
-      },
-      onNext: (payload, isComplete) => {
-        console.log(
-          `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
-        );
-      },
-      onComplete: () => {
-        console.log('Completed!');
-      },
-      onExtension: () => { },
-      request: (n) => {
-        console.log(`request(${n})`);
-        // requester.onNext(
-        //   {
-        //     data: Buffer.from("Message"),
-        //   },
-        //   true
-        // );
-      },
-      cancel: () => {
-        console.warn('Canceled!');},
+    if (!ignore) {
+      const connectRsocket = async () => {
+        return await connector.connect();
+      }
+      connectRsocket()
+      .then(rsocket => rsocket.requestChannel(
+        {
+          data: Buffer.from(new CloudEvent<JoinRequest>({
+            id: crypto.randomUUID(),
+            source: "https://snaptap.adombi.dev",
+            type: "com.creative_it.meetup_game_server.JoinRequest",
+            data: {
+              "playerName": crypto.randomUUID()
+            }
+          }).toString()),
+          metadata: createRoute(`sensor-gaming/${params.slug}`)
+        },
+        10,
+        false,
+        {
+          onError: (e) => {
+            console.error(e);
+          },
+          onNext: (payload, isComplete) => {
+            console.log(
+              `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
+            );
+          },
+          onComplete: () => {
+            console.log('Completed!');
+          },
+          onExtension: () => {
+          },
+          request: (n) => {
+            console.log(`request(${n})`);
+            // requester.onNext(
+            //   {
+            //     data: Buffer.from("Message"),
+            //   },
+            //   true
+            // );
+          },
+          cancel: () => {
+            console.warn('Canceled!');
+          },
+        }
+      ))
+      .then(requester => setRequester(requester))
     }
-  );
+
+    return () => {
+      ignore = true
+      requester?.cancel()
+    }
+  }, [])
 
   const cloudEvent = new CloudEvent<User>({
     id: crypto.randomUUID(), source: "asdf", type: "java.lang.String", data: {"name": "Start"}
@@ -79,7 +108,7 @@ export default async function Page({ params }: { params: { slug: string } }) {
       <button
         type="button"
         className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
-        onClick={() => requester.onNext({
+        onClick={() => requester?.onNext({
           data: Buffer.from(cloudEvent.toString()),
           metadata: createRoute('sensor-gaming/real-game')
         }, false)}
