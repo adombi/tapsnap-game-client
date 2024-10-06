@@ -1,7 +1,25 @@
-import Link from "next/link";
+'use client'
 
-export default async function Home() {
-  const games = await fetch(`${process.env.HTTP_SERVER_HOST}/games`).then(data => data.json())
+import Link from "next/link";
+import NameModal from "@/app/name-modal";
+import usePlayer from "@/app/use-player";
+import {useEffect, useState} from "react";
+
+export default function Home() {
+  const { player } = usePlayer();
+  const [games, setGames] = useState<Game[]>([])
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_HTTP_SERVER_HOST}/games`)
+      .then(data => data.json())
+      .then(g => setGames(g))
+  }, [])
+
+  if (player === undefined) {
+    return (
+      <NameModal/>
+    )
+  }
 
   return (
     <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">

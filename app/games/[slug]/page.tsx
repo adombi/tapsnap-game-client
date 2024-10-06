@@ -12,6 +12,8 @@ import {
   OnNextSubscriber,
   OnTerminalSubscriber, Requestable
 } from "rsocket-core/dist/RSocket";
+import usePlayer from "@/app/use-player";
+import NameModal from "@/app/name-modal";
 
 const connector = new RSocketConnector({
   setup: {
@@ -21,14 +23,22 @@ const connector = new RSocketConnector({
     metadataMimeType: "message/x.rsocket.composite-metadata.v0"
   },
   transport: new WebsocketClientTransport({
-    url: process.env.WEBSOCKET_SERVER_HOST || "ws://localhost:7000",
+    url: process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_HOST || "ws://localhost:7000",
     wsCreator: (url) => new WebSocket(url),
     debug: true,
   }),
 });
 
+enum Phase {
+  WAITING = 'waiting',
+  COUNT_DOWN = 'count_down',
+  IN_PROGRESS = 'in_progress'
+}
+
 export default function Page({ params }: { params: { slug: string } }) {
+  const { player } = usePlayer();
   const [requester, setRequester] = useState<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>();
+  const [phase, setPhase] = useState<Phase>(Phase.WAITING);
   function createRoute(route?: string) {
     let compositeMetaData = undefined;
     if (route) {
@@ -44,7 +54,7 @@ export default function Page({ params }: { params: { slug: string } }) {
   useEffect(() => {
     let ignore = false
 
-    if (!ignore) {
+    if (!ignore && player) {
       const connectRsocket = async () => {
         return await connector.connect();
       }
@@ -56,7 +66,7 @@ export default function Page({ params }: { params: { slug: string } }) {
             source: "https://snaptap.adombi.dev",
             type: "com.creative_it.meetup_game_server.JoinRequest",
             data: {
-              "playerName": crypto.randomUUID()
+              "playerName": player
             }
           }).toString()),
           metadata: createRoute(`sensor-gaming/${params.slug}`)
@@ -98,13 +108,22 @@ export default function Page({ params }: { params: { slug: string } }) {
       ignore = true
       requester?.cancel()
     }
-  }, [])
+  }, [player])
+
+  if (player === undefined) {
+    return (
+      <NameModal/>
+    )
+  }
 
   const cloudEvent = new CloudEvent<User>({
-    id: crypto.randomUUID(), source: "asdf", type: "java.lang.String", data: {"name": "Start"}
+    id: crypto.randomUUID(),
+    source: "https://snaptap.adombi.dev",
+    type: "com.creative_it.meetup_game_server.StartGame"
   });
   return <>
-      <p>Game: {params.slug}</p>
+      <p>Game: {params.slug} - {phase}</p>
+      <p>Player: {player}</p>
       <button
         type="button"
         className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
