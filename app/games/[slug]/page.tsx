@@ -41,6 +41,7 @@ export default function Page({ params }: { params: { slug: string } }) {
   const [requester, setRequester] = useState<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>();
   const [connected, setConnected] = useState<boolean>(false)
   const [phase, setPhase] = useState<Phase>(Phase.LOBBY);
+  const [model, setModel] = useState<unknown>(undefined);
   const [game, setGame] = useState<Game>();
   function createRoute(route?: string) {
     let compositeMetaData = undefined;
@@ -76,10 +77,15 @@ export default function Page({ params }: { params: { slug: string } }) {
               console.error(e);
             },
             onNext: (payload, isComplete) => {
-              const cloudEvent: CloudEvent<any> = JSON.parse(payload.data?.toString()!!)
+              const cloudEvent: CloudEvent<unknown> = JSON.parse(payload.data?.toString()!!)
               switch (cloudEvent.type) {
                 case "Joined":
-                  setGame(cloudEvent.data)
+                  setGame(cloudEvent.data as Game)
+                  break;
+                case "CountDown":
+                  setPhase(Phase.COUNT_DOWN)
+                  setModel(cloudEvent.data as number)
+                  break;
               }
               console.log(
                 `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
@@ -138,14 +144,28 @@ export default function Page({ params }: { params: { slug: string } }) {
   switch (phase) {
     case Phase.LOBBY:
       return <div>
-          <h1>{gameId} Lobby</h1>
-          <p>Waiting for other players to join</p>
-            {game.users.map((user: User) => (
-              <ul key={user.name}>
-                <li>{user.name}</li>
-              </ul>
-            ))}
-        </div>
+        <h1>{gameId} Lobby</h1>
+        <p>Waiting for other players to join</p>
+        {game.users.map((user: User) => (
+          <ul key={user.name}>
+            <li>{user.name}</li>
+          </ul>
+        ))}
+        <button
+          type="button"
+          className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
+          onClick={() => requester.onNext({
+            data: Buffer.from(cloudEvent.toString()),
+            metadata: createRoute(`tap-snap/${gameId}`)
+          }, false)}
+        >
+          Start
+        </button>
+      </div>
+    case Phase.COUNT_DOWN:
+      return <div>
+        <h1>{model as number}</h1>
+      </div>
   }
   return <>
       <p>Game: {gameId} - {phase}</p>
