@@ -43,6 +43,7 @@ export default function Page({ params }: { params: { slug: string } }) {
   const [phase, setPhase] = useState<Phase>(Phase.LOBBY);
   const [model, setModel] = useState<unknown>(undefined);
   const [game, setGame] = useState<Game>();
+  const [reacted, setReacted] = useState(false)
   function createRoute(route?: string) {
     let compositeMetaData = undefined;
     if (route) {
@@ -88,7 +89,8 @@ export default function Page({ params }: { params: { slug: string } }) {
                   break;
                 case "InProgress":
                   setPhase(Phase.IN_PROGRESS)
-                  setModel(cloudEvent.data as number)
+                  setModel(Date.now())
+                  setReacted(false)
                   break;
               }
               console.log(
@@ -173,6 +175,29 @@ export default function Page({ params }: { params: { slug: string } }) {
     case Phase.IN_PROGRESS:
       return <div>
         <h1>In progress: {model as number}</h1>
+        <button
+          type="button"
+          className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
+          onClick={() => {
+            if (!reacted) {
+              requester.onNext({
+                data: Buffer.from(new CloudEvent<Reaction>({
+                  id: crypto.randomUUID(),
+                  source: "https://snaptap.adombi.dev",
+                  type: "com.creative_it.meetup_game_server.React",
+                  data: {
+                    playerName: player,
+                    respondTimeMillis: Math.min(Date.now() - (model as number), 1000)
+                  }
+                }).toString()),
+                metadata: createRoute(`tap-snap/${gameId}`)
+              }, false)
+            }
+            setReacted(true)
+          }}
+        >
+          React
+        </button>
       </div>
   }
   return <>
