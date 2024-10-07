@@ -86,6 +86,10 @@ export default function Page({ params }: { params: { slug: string } }) {
                   setPhase(Phase.COUNT_DOWN)
                   setModel(cloudEvent.data as number)
                   break;
+                case "InProgress":
+                  setPhase(Phase.IN_PROGRESS)
+                  setModel(cloudEvent.data as number)
+                  break;
               }
               console.log(
                 `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
@@ -164,7 +168,11 @@ export default function Page({ params }: { params: { slug: string } }) {
       </div>
     case Phase.COUNT_DOWN:
       return <div>
-        <h1>{model as number}</h1>
+        <h1>Count down: {model as number}</h1>
+      </div>
+    case Phase.IN_PROGRESS:
+      return <div>
+        <h1>In progress: {model as number}</h1>
       </div>
   }
   return <>
