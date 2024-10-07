@@ -67,7 +67,7 @@ export default function Page({ params }: { params: { slug: string } }) {
               source: "https://snaptap.adombi.dev",
               type: "com.creative_it.meetup_game_server.Connect"
             }).toString()),
-            metadata: createRoute(`sensor-gaming/${gameId}`)
+            metadata: createRoute(`tap-snap/${gameId}`)
           },
           9999,
           false,
@@ -122,7 +122,7 @@ export default function Page({ params }: { params: { slug: string } }) {
             "playerName": player
           }
         }).toString()),
-        metadata: createRoute(`sensor-gaming/${gameId}`)
+        metadata: createRoute(`tap-snap/${gameId}`)
       }, false)
     }
   }, [connected, player]);
@@ -155,7 +155,7 @@ export default function Page({ params }: { params: { slug: string } }) {
         className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
         onClick={() => requester.onNext({
           data: Buffer.from(cloudEvent.toString()),
-          metadata: createRoute(`sensor-gaming/${gameId}`)
+          metadata: createRoute(`tap-snap/${gameId}`)
         }, false)}
       >
         Start
