@@ -17,8 +17,8 @@ import NameModal from "@/app/name-modal";
 
 const connector = new RSocketConnector({
   setup: {
-    // keepAlive: 10000,
-    // lifetime: 100000,
+    keepAlive: 60000,
+    lifetime: 600000,
     dataMimeType: "application/cloudevents+json",
     metadataMimeType: "message/x.rsocket.composite-metadata.v0"
   },
@@ -30,15 +30,18 @@ const connector = new RSocketConnector({
 });
 
 enum Phase {
-  WAITING = 'waiting',
+  LOBBY = 'lobby',
   COUNT_DOWN = 'count_down',
   IN_PROGRESS = 'in_progress'
 }
 
 export default function Page({ params }: { params: { slug: string } }) {
+  const gameId: string = params.slug
   const { player } = usePlayer();
   const [requester, setRequester] = useState<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>();
-  const [phase, setPhase] = useState<Phase>(Phase.WAITING);
+  const [connected, setConnected] = useState<boolean>(false)
+  const [phase, setPhase] = useState<Phase>(Phase.LOBBY);
+  const [game, setGame] = useState<Game>();
   function createRoute(route?: string) {
     let compositeMetaData = undefined;
     if (route) {
@@ -54,82 +57,105 @@ export default function Page({ params }: { params: { slug: string } }) {
   useEffect(() => {
     let ignore = false
 
-    if (!ignore && player) {
+    if (!ignore && !connected) {
       const connectRsocket = async () => {
-        return await connector.connect();
+        const rsocket = await connector.connect()
+        setRequester(rsocket.requestChannel(
+          {
+            data: Buffer.from(new CloudEvent<undefined>({
+              id: crypto.randomUUID(),
+              source: "https://snaptap.adombi.dev",
+              type: "com.creative_it.meetup_game_server.Connect"
+            }).toString()),
+            metadata: createRoute(`sensor-gaming/${gameId}`)
+          },
+          9999,
+          false,
+          {
+            onError: (e) => {
+              console.error(e);
+            },
+            onNext: (payload, isComplete) => {
+              const cloudEvent: CloudEvent<any> = JSON.parse(payload.data?.toString()!!)
+              switch (cloudEvent.type) {
+                case "Joined":
+                  setGame(cloudEvent.data)
+              }
+              console.log(
+                `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
+              );
+            },
+            onComplete: () => {
+              console.log('Completed!');
+            },
+            onExtension: () => {
+            },
+            request: (n) => {
+              console.log(`request(${n})`);
+            },
+            cancel: () => {
+              console.warn('Canceled!');
+            },
+          }
+        ))
       }
       connectRsocket()
-      .then(rsocket => rsocket.requestChannel(
-        {
-          data: Buffer.from(new CloudEvent<JoinRequest>({
-            id: crypto.randomUUID(),
-            source: "https://snaptap.adombi.dev",
-            type: "com.creative_it.meetup_game_server.JoinRequest",
-            data: {
-              "playerName": player
-            }
-          }).toString()),
-          metadata: createRoute(`sensor-gaming/${params.slug}`)
-        },
-        10,
-        false,
-        {
-          onError: (e) => {
-            console.error(e);
-          },
-          onNext: (payload, isComplete) => {
-            console.log(
-              `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
-            );
-          },
-          onComplete: () => {
-            console.log('Completed!');
-          },
-          onExtension: () => {
-          },
-          request: (n) => {
-            console.log(`request(${n})`);
-            // requester.onNext(
-            //   {
-            //     data: Buffer.from("Message"),
-            //   },
-            //   true
-            // );
-          },
-          cancel: () => {
-            console.warn('Canceled!');
-          },
-        }
-      ))
-      .then(requester => setRequester(requester))
+        .then(() => setConnected(true))
+        .catch(console.error)
     }
 
     return () => {
       ignore = true
       requester?.cancel()
     }
-  }, [player])
+  }, [])
 
-  if (player === undefined) {
-    return (
-      <NameModal/>
-    )
-  }
+  useEffect(() => {
+    if (connected && player) {
+      console.log("JoinRequest")
+      requester!.onNext({
+        data: Buffer.from(new CloudEvent<JoinRequest>({
+          id: crypto.randomUUID(),
+          source: "https://snaptap.adombi.dev",
+          type: "com.creative_it.meetup_game_server.JoinRequest",
+          data: {
+            "playerName": player
+          }
+        }).toString()),
+        metadata: createRoute(`sensor-gaming/${gameId}`)
+      }, false)
+    }
+  }, [connected, player]);
+
+  if (player === undefined) return <NameModal/>
+  if (requester === undefined || game === undefined) return <div>Loading game...</div>
 
   const cloudEvent = new CloudEvent<User>({
     id: crypto.randomUUID(),
     source: "https://snaptap.adombi.dev",
     type: "com.creative_it.meetup_game_server.StartGame"
   });
+  switch (phase) {
+    case Phase.LOBBY:
+      return <div>
+          <h1>{gameId} Lobby</h1>
+          <p>Waiting for other players to join</p>
+            {game.users.map((user: User) => (
+              <ul key={user.name}>
+                <li>{user.name}</li>
+              </ul>
+            ))}
+        </div>
+  }
   return <>
-      <p>Game: {params.slug} - {phase}</p>
+      <p>Game: {gameId} - {phase}</p>
       <p>Player: {player}</p>
       <button
         type="button"
         className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
-        onClick={() => requester?.onNext({
+        onClick={() => requester.onNext({
           data: Buffer.from(cloudEvent.toString()),
-          metadata: createRoute('sensor-gaming/real-game')
+          metadata: createRoute(`sensor-gaming/${gameId}`)
         }, false)}
       >
         Start
