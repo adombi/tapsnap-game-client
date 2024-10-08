@@ -67,7 +67,7 @@ export default function Page({ params }: { params: { slug: string } }) {
             data: Buffer.from(new CloudEvent<undefined>({
               id: crypto.randomUUID(),
               source: "https://snaptap.adombi.dev",
-              type: "com.creative_it.meetup_game_server.Connect"
+              type: "com.tapsnap.game_server.Connect"
             }).toString()),
             metadata: createRoute(`tap-snap/${gameId}`)
           },
@@ -129,7 +129,7 @@ export default function Page({ params }: { params: { slug: string } }) {
         data: Buffer.from(new CloudEvent<JoinRequest>({
           id: crypto.randomUUID(),
           source: "https://snaptap.adombi.dev",
-          type: "com.creative_it.meetup_game_server.JoinRequest",
+          type: "com.tapsnap.game_server.JoinRequest",
           data: {
             "playerName": player
           }
@@ -145,7 +145,7 @@ export default function Page({ params }: { params: { slug: string } }) {
   const cloudEvent = new CloudEvent<User>({
     id: crypto.randomUUID(),
     source: "https://snaptap.adombi.dev",
-    type: "com.creative_it.meetup_game_server.StartGame"
+    type: "com.tapsnap.game_server.StartGame"
   });
   switch (phase) {
     case Phase.LOBBY:
@@ -184,7 +184,7 @@ export default function Page({ params }: { params: { slug: string } }) {
                 data: Buffer.from(new CloudEvent<Reaction>({
                   id: crypto.randomUUID(),
                   source: "https://snaptap.adombi.dev",
-                  type: "com.creative_it.meetup_game_server.React",
+                  type: "com.tapsnap.game_server.React",
                   data: {
                     playerName: player,
                     respondTimeMillis: Math.min(Date.now() - (model as number), 1000)
