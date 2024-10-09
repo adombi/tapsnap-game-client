@@ -32,7 +32,8 @@ const connector = new RSocketConnector({
 enum Phase {
   LOBBY = 'lobby',
   COUNT_DOWN = 'count_down',
-  IN_PROGRESS = 'in_progress'
+  IN_PROGRESS = 'in_progress',
+  RESULTS = 'results'
 }
 
 export default function Page({ params }: { params: { slug: string } }) {
@@ -92,6 +93,10 @@ export default function Page({ params }: { params: { slug: string } }) {
                   setModel(Date.now())
                   setReacted(false)
                   break;
+                case "Results":
+                  setPhase(Phase.RESULTS)
+                  setModel(cloudEvent.data as Results)
+                  break;
               }
               console.log(
                 `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
@@ -142,7 +147,7 @@ export default function Page({ params }: { params: { slug: string } }) {
   if (player === undefined) return <NameModal/>
   if (requester === undefined || game === undefined) return <div>Loading game...</div>
 
-  const cloudEvent = new CloudEvent<User>({
+  const cloudEvent = new CloudEvent<unknown>({
     id: crypto.randomUUID(),
     source: "https://snaptap.adombi.dev",
     type: "com.tapsnap.game_server.StartGame"
@@ -152,9 +157,9 @@ export default function Page({ params }: { params: { slug: string } }) {
       return <div>
         <h1>{gameId} Lobby</h1>
         <p>Waiting for other players to join</p>
-        {game.users.map((user: User) => (
-          <ul key={user.name}>
-            <li>{user.name}</li>
+        {game.users.map((user: string) => (
+          <ul key={user}>
+            <li>{user}</li>
           </ul>
         ))}
         <button
@@ -198,6 +203,15 @@ export default function Page({ params }: { params: { slug: string } }) {
         >
           React
         </button>
+      </div>
+    case Phase.RESULTS:
+      return <div>
+        <h1>Results of {player}</h1>
+        {(model as Results)[player]?.map((reactionInMillis: number, index: number) => (
+          <ul key={index}>
+            <li>{reactionInMillis}</li>
+          </ul>
+        ))}
       </div>
   }
   return <>
