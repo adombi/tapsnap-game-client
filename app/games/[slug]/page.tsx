@@ -90,7 +90,10 @@ export default function Page({ params }: { params: { slug: string } }) {
                   break;
                 case "InProgress":
                   setPhase(Phase.IN_PROGRESS)
-                  setModel(Date.now())
+                  setModel({
+                    number: cloudEvent.data as number,
+                    eventReceivedEpoch: Date.now()
+                  } as PhaseModel)
                   reacted.current = false
                   break;
                 case "Results":
@@ -173,56 +176,54 @@ export default function Page({ params }: { params: { slug: string } }) {
 
   switch (phase) {
     case Phase.LOBBY:
-      return <div>
-        <h1
-          className="dark:text-white font-extrabold leading-none lg:text-6xl md:text-5xl pt-10 sm:pt-20 text-4xl text-center text-gray-900 tracking-tight">
-          {gameId} Lobby
-        </h1>
-        <h2
-          className="dark:text-white font-extrabold leading-none lg:text-4xl md:text-3xl text-2xl p-5 text-center text-gray-900 tracking-tight">
-          Waiting for other players to join<span className="loading">...</span>
-        </h2>
-        <div className="dark:text-white font-extrabold leading-none lg:text-xl md:text-xl text-xl p-5 text-center text-gray-900 tracking-tight">Current players</div>
-        <ul className="flex flex-col items-center gap-2 text-center w-full">
-          {game.users.map((user: string) => (
-            <li
-              key={user}
-              className="bg-green-100 text-green-800 text-xl font-medium me-2 px-2.5 py-0.5 w-96 rounded dark:bg-gray-700 dark:text-green-400 border border-green-400">
-                {user}
-              </li>
-          ))}
-        </ul>
+      return <div className="magicpattern-default px-20">
+        <div className="background h-full" style={ {"background-color": "#00000078"}}>
+          <h1
+            className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-10 sm:pt-20 text-4xl text-center text-gray-300 tracking-tight">
+            {gameId} Lobby
+          </h1>
+          <h2
+            className="font-extrabold leading-none lg:text-4xl md:text-3xl text-2xl p-5 text-center text-gray-300 tracking-tight">
+            Waiting for other players to join<span className="loading">...</span>
+          </h2>
+          <div className="font-extrabold leading-none lg:text-xl md:text-xl text-xl p-5 text-center text-gray-300 tracking-tight">Current players</div>
+          <ul className="flex flex-col items-center gap-2 text-center w-full">
+            {game.users.map((user: string) => (
+              <li
+                key={user}
+                className="text-2xl font-semibold me-2 px-2.5 py-1 w-64 rounded text-orange-500 bg-gray-900 border-4 border-orange-700">
+                  {user}
+                </li>
+            ))}
+          </ul>
+        </div>
       </div>
     case Phase.COUNT_DOWN:
-      return <div>
+      return <div className="font-extrabold leading-none pt-10 sm:pt-20 text-9xl text-center text-gray-300 tracking-tight magicpattern-default">
         <h1>{model as string}</h1>
       </div>
     case Phase.IN_PROGRESS:
-      return <div>
-        <h1>In progress: {model as number}</h1>
-        <button
-          type="button"
-          className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
-          onClick={() => {
-            if (!reacted.current) {
-              requester.current?.onNext({
-                data: Buffer.from(new CloudEvent<Reaction>({
-                  id: crypto.randomUUID(),
-                  source: "https://snaptap.adombi.dev",
-                  type: "com.tapsnap.game_server.React",
-                  data: {
-                    playerName: player,
-                    respondTimeMillis: Math.min(Date.now() - (model as number), 1000)
-                  }
-                }).toString()),
-                metadata: createRoute(`tap-snap/${gameId}`)
-              }, false)
-              reacted.current = true
-            }
-          }}
-        >
-          React
-        </button>
+      const phase = model as PhaseModel;
+      return <div onClick={() => {
+        if (!reacted.current) {
+          requester.current?.onNext({
+            data: Buffer.from(new CloudEvent<Reaction>({
+              id: crypto.randomUUID(),
+              source: "https://snaptap.adombi.dev",
+              type: "com.tapsnap.game_server.React",
+              data: {
+                playerName: player,
+                respondTimeMillis: Math.min(Date.now() - phase.eventReceivedEpoch, 1000)
+              }
+            }).toString()),
+            metadata: createRoute(`tap-snap/${gameId}`)
+          }, false)
+          reacted.current = true
+        }
+      }} className="h-full disable-selection">
+        <h1 className={`font-extrabold leading-none pt-10 sm:pt-20 text-9xl text-center text-gray-300 tracking-tight magicpattern-${phase.number} h-full`}>
+          Phase {phase.number}
+        </h1>
       </div>
     case Phase.RESULTS:
       return <div>
