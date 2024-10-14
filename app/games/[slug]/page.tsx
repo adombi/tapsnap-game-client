@@ -4,7 +4,7 @@ import {RSocketConnector} from "rsocket-core";
 import {WebsocketClientTransport} from "rsocket-websocket-client";
 import MESSAGE_RSOCKET_ROUTING = WellKnownMimeType.MESSAGE_RSOCKET_ROUTING;
 import {encodeCompositeMetadata, encodeRoute, WellKnownMimeType} from "rsocket-composite-metadata";
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import { CloudEvent } from "cloudevents";
 import {
   Cancellable,
@@ -39,12 +39,12 @@ enum Phase {
 export default function Page({ params }: { params: { slug: string } }) {
   const gameId: string = params.slug
   const { player } = usePlayer();
-  const [requester, setRequester] = useState<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>();
   const [connected, setConnected] = useState<boolean>(false)
   const [phase, setPhase] = useState<Phase>(Phase.LOBBY);
   const [model, setModel] = useState<unknown>(undefined);
   const [game, setGame] = useState<Game>();
-  const [reacted, setReacted] = useState(false)
+  const requester = useRef<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>();
+  const reacted = useRef(true)
   function createRoute(route?: string) {
     let compositeMetaData = undefined;
     if (route) {
@@ -63,7 +63,7 @@ export default function Page({ params }: { params: { slug: string } }) {
     if (!ignore && !connected) {
       const connectRsocket = async () => {
         const rsocket = await connector.connect()
-        setRequester(rsocket.requestChannel(
+        requester.current = rsocket.requestChannel(
           {
             data: Buffer.from(new CloudEvent<undefined>({
               id: crypto.randomUUID(),
@@ -79,7 +79,7 @@ export default function Page({ params }: { params: { slug: string } }) {
               console.error(e);
             },
             onNext: (payload, isComplete) => {
-              const cloudEvent: CloudEvent<unknown> = JSON.parse(payload.data?.toString()!!)
+              const cloudEvent: CloudEvent<unknown> = JSON.parse(payload.data?.toString() || '')
               switch (cloudEvent.type) {
                 case "Joined":
                   setGame(cloudEvent.data as Game)
@@ -91,7 +91,7 @@ export default function Page({ params }: { params: { slug: string } }) {
                 case "InProgress":
                   setPhase(Phase.IN_PROGRESS)
                   setModel(Date.now())
-                  setReacted(false)
+                  reacted.current = false
                   break;
                 case "Results":
                   setPhase(Phase.RESULTS)
@@ -114,7 +114,7 @@ export default function Page({ params }: { params: { slug: string } }) {
               console.warn('Canceled!');
             },
           }
-        ))
+        )
       }
       connectRsocket()
         .then(() => setConnected(true))
@@ -123,14 +123,13 @@ export default function Page({ params }: { params: { slug: string } }) {
 
     return () => {
       ignore = true
-      requester?.cancel()
+      requester?.current?.cancel()
     }
   }, [])
 
   useEffect(() => {
     if (connected && player) {
-      console.log("JoinRequest")
-      requester!.onNext({
+      requester.current!.onNext({
         data: Buffer.from(new CloudEvent<JoinRequest>({
           id: crypto.randomUUID(),
           source: "https://snaptap.adombi.dev",
@@ -143,6 +142,28 @@ export default function Page({ params }: { params: { slug: string } }) {
       }, false)
     }
   }, [connected, player]);
+
+  useEffect(() => {
+    if (phase === Phase.IN_PROGRESS) {
+      setTimeout(() => {
+        if (!reacted.current) {
+          requester.current?.onNext({
+            data: Buffer.from(new CloudEvent<Reaction>({
+              id: crypto.randomUUID(),
+              source: "https://snaptap.adombi.dev",
+              type: "com.tapsnap.game_server.React",
+              data: {
+                playerName: player!,
+                respondTimeMillis: 1000
+              }
+            }).toString()),
+            metadata: createRoute(`tap-snap/${gameId}`)
+          }, false)
+          reacted.current = true
+        }
+      }, 1000)
+    }
+  }, [phase, model]);
 
   if (player === undefined) return <NameModal/>
   if (requester === undefined || game === undefined) return <div>Loading game...</div>
@@ -165,7 +186,7 @@ export default function Page({ params }: { params: { slug: string } }) {
         <button
           type="button"
           className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
-          onClick={() => requester.onNext({
+          onClick={() => requester.current?.onNext({
             data: Buffer.from(cloudEvent.toString()),
             metadata: createRoute(`tap-snap/${gameId}`)
           }, false)}
@@ -184,8 +205,8 @@ export default function Page({ params }: { params: { slug: string } }) {
           type="button"
           className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
           onClick={() => {
-            if (!reacted) {
-              requester.onNext({
+            if (!reacted.current) {
+              requester.current?.onNext({
                 data: Buffer.from(new CloudEvent<Reaction>({
                   id: crypto.randomUUID(),
                   source: "https://snaptap.adombi.dev",
@@ -197,8 +218,8 @@ export default function Page({ params }: { params: { slug: string } }) {
                 }).toString()),
                 metadata: createRoute(`tap-snap/${gameId}`)
               }, false)
+              reacted.current = true
             }
-            setReacted(true)
           }}
         >
           React
@@ -220,7 +241,7 @@ export default function Page({ params }: { params: { slug: string } }) {
       <button
         type="button"
         className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
-        onClick={() => requester.onNext({
+        onClick={() => requester.current?.onNext({
           data: Buffer.from(cloudEvent.toString()),
           metadata: createRoute(`tap-snap/${gameId}`)
         }, false)}

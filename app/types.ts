@@ -2,14 +2,9 @@
 interface Game {
   id: string
   users: string[]
+  results: Results
 }
 
-// interface User {
-//   name: string
-//   ready: boolean
-// }
-//
-// interface GamePayload {
-//   name: string
-//   start: boolean
-// }
+interface Results {
+  [player: string]: number[]
+}
