@@ -97,6 +97,9 @@ export default function Page({ params }: { params: { slug: string } }) {
                   setPhase(Phase.RESULTS)
                   setModel(cloudEvent.data as Results)
                   break;
+                case "Restarted":
+                  setPhase(Phase.LOBBY)
+                  break;
               }
               console.log(
                 `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`

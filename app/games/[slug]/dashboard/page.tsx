@@ -1,6 +1,6 @@
 'use client'
 
-import {useEffect, useState} from "react";
+import React, {useEffect, useState} from "react";
 import {
   Cancellable,
   OnExtensionSubscriber,
@@ -95,6 +95,13 @@ export default function Page({ params }: { params: { slug: string } }) {
         <caption
           className="p-5 text-lg font-semibold text-left rtl:text-right text-gray-900 bg-white dark:text-white dark:bg-gray-800">
           Dashboard for {params.slug}
+          <button
+            type="button"
+            className='h-8 px-2 text-md rounded-md bg-gray-700 hover:bg-green-800 text-white'
+            onClick={() => fetch(`${process.env.NEXT_PUBLIC_HTTP_SERVER_HOST}/games/${gameId}/restart`)}
+          >
+            Restart
+          </button>
         </caption>
         <thead
           className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
