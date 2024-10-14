@@ -174,17 +174,28 @@ export default function Page({ params }: { params: { slug: string } }) {
   switch (phase) {
     case Phase.LOBBY:
       return <div>
-        <h1>{gameId} Lobby</h1>
-        <p>Waiting for other players to join</p>
-        {game.users.map((user: string) => (
-          <ul key={user}>
-            <li>{user}</li>
-          </ul>
-        ))}
+        <h1
+          className="dark:text-white font-extrabold leading-none lg:text-6xl md:text-5xl pt-10 sm:pt-20 text-4xl text-center text-gray-900 tracking-tight">
+          {gameId} Lobby
+        </h1>
+        <h2
+          className="dark:text-white font-extrabold leading-none lg:text-4xl md:text-3xl text-2xl p-5 text-center text-gray-900 tracking-tight">
+          Waiting for other players to join<span className="loading">...</span>
+        </h2>
+        <div className="dark:text-white font-extrabold leading-none lg:text-xl md:text-xl text-xl p-5 text-center text-gray-900 tracking-tight">Current players</div>
+        <ul className="flex flex-col items-center gap-2 text-center w-full">
+          {game.users.map((user: string) => (
+            <li
+              key={user}
+              className="bg-green-100 text-green-800 text-xl font-medium me-2 px-2.5 py-0.5 w-96 rounded dark:bg-gray-700 dark:text-green-400 border border-green-400">
+                {user}
+              </li>
+          ))}
+        </ul>
       </div>
     case Phase.COUNT_DOWN:
       return <div>
-        <h1>Count down: {model as number}</h1>
+        <h1>{model as string}</h1>
       </div>
     case Phase.IN_PROGRESS:
       return <div>
