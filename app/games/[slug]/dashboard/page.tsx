@@ -1,9 +1,9 @@
 'use client'
 
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useRef, useState} from "react";
 import {
   Cancellable,
-  OnExtensionSubscriber,
+  OnExtensionSubscriber, OnNextSubscriber, OnTerminalSubscriber,
   Requestable
 } from "rsocket-core/dist/RSocket";
 import MESSAGE_RSOCKET_ROUTING = WellKnownMimeType.MESSAGE_RSOCKET_ROUTING;
@@ -28,9 +28,11 @@ const connector = new RSocketConnector({
 
 export default function Page({ params }: { params: { slug: string } }) {
   const gameId: string = params.slug
-  const [game, setGame] = useState<Game>();
-  const [requester, setRequester] = useState<Requestable & Cancellable & OnExtensionSubscriber>();
-  const [connected, setConnected] = useState<boolean>(false)
+  const [game, setGame] = useState<Game>()
+  const requester = useRef<Requestable & Cancellable & OnExtensionSubscriber>()
+  const channelRequester = useRef<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>()
+  const connected = useRef<boolean>(false)
+  const channelConnected = useRef<boolean>(false)
   function createRoute(route?: string) {
     let compositeMetaData = undefined;
     if (route) {
@@ -46,10 +48,10 @@ export default function Page({ params }: { params: { slug: string } }) {
   useEffect(() => {
     let ignore = false
 
-    if (!ignore && !connected) {
+    if (!ignore && !connected.current) {
       const connectRsocket = async () => {
         const rsocket = await connector.connect()
-        setRequester(rsocket.requestStream(
+        requester.current = rsocket.requestStream(
           {
             data: null,
             metadata: createRoute(`tap-snap/${gameId}/dashboard`)
@@ -74,18 +76,59 @@ export default function Page({ params }: { params: { slug: string } }) {
             onExtension: () => {
             }
           }
-        ))
+        )
       }
       connectRsocket()
-      .catch(reason => {
-        setConnected(false)
-        console.error(reason)
-      })
+        .then(() => connected.current = true)
+        .catch(reason => console.error(reason))
+    }
+
+    if (!ignore && !channelConnected.current) {
+      const connectRsocket = async () => {
+        const rsocket = await connector.connect()
+        channelRequester.current = rsocket.requestChannel(
+          {
+            data: Buffer.from(new CloudEvent<undefined>({
+              id: crypto.randomUUID(),
+              source: "https://snaptap.adombi.dev",
+              type: "com.tapsnap.game_server.Connect"
+            }).toString()),
+            metadata: createRoute(`tap-snap/${gameId}`)
+          },
+          9999,
+          false,
+          {
+            onError: (e) => {
+              console.error(e);
+            },
+            onNext: (payload, isComplete) => {
+              console.log(
+                `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
+              );
+            },
+            onComplete: () => {
+              console.log('Completed!');
+            },
+            onExtension: () => {
+            },
+            request: (n) => {
+              console.log(`request(${n})`);
+            },
+            cancel: () => {
+              console.warn('Canceled!');
+            },
+          }
+        )
+      }
+      connectRsocket()
+        .then(() => channelConnected.current = true)
+        .catch(console.error)
     }
 
     return () => {
       ignore = true
-      requester?.cancel()
+      requester?.current?.cancel()
+      channelRequester?.current?.cancel()
     }
   }, [connected])
 
@@ -95,6 +138,22 @@ export default function Page({ params }: { params: { slug: string } }) {
         <caption
           className="p-5 text-lg font-semibold text-left rtl:text-right text-gray-900 bg-white dark:text-white dark:bg-gray-800">
           Dashboard for {params.slug}
+          <button
+            type="button"
+            className='h-8 px-2 text-md rounded-md bg-gray-700 hover:bg-green-800 text-white'
+            onClick={() => {
+              channelRequester.current?.onNext({
+                  data: Buffer.from(new CloudEvent<unknown>({
+                    id: crypto.randomUUID(),
+                    source: "https://snaptap.adombi.dev",
+                    type: "com.tapsnap.game_server.StartGame"
+                  }).toString()),
+                  metadata: createRoute(`tap-snap/${gameId}`)
+                }, false)
+            }}
+          >
+            Start
+          </button>
           <button
             type="button"
             className='h-8 px-2 text-md rounded-md bg-gray-700 hover:bg-green-800 text-white'

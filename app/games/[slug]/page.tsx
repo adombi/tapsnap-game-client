@@ -171,11 +171,6 @@ export default function Page({ params }: { params: { slug: string } }) {
   if (player === undefined) return <NameModal/>
   if (requester === undefined || game === undefined) return <div>Loading game...</div>
 
-  const cloudEvent = new CloudEvent<unknown>({
-    id: crypto.randomUUID(),
-    source: "https://snaptap.adombi.dev",
-    type: "com.tapsnap.game_server.StartGame"
-  });
   switch (phase) {
     case Phase.LOBBY:
       return <div>
@@ -186,16 +181,6 @@ export default function Page({ params }: { params: { slug: string } }) {
             <li>{user}</li>
           </ul>
         ))}
-        <button
-          type="button"
-          className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
-          onClick={() => requester.current?.onNext({
-            data: Buffer.from(cloudEvent.toString()),
-            metadata: createRoute(`tap-snap/${gameId}`)
-          }, false)}
-        >
-          Start
-        </button>
       </div>
     case Phase.COUNT_DOWN:
       return <div>
@@ -241,15 +226,5 @@ export default function Page({ params }: { params: { slug: string } }) {
   return <>
       <p>Game: {gameId} - {phase}</p>
       <p>Player: {player}</p>
-      <button
-        type="button"
-        className='h-8 px-2 text-md rounded-md bg-gray-700 text-white'
-        onClick={() => requester.current?.onNext({
-          data: Buffer.from(cloudEvent.toString()),
-          metadata: createRoute(`tap-snap/${gameId}`)
-        }, false)}
-      >
-        Start
-      </button>
     </>
 }
