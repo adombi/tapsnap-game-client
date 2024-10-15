@@ -177,7 +177,7 @@ export default function Page({ params }: { params: { slug: string } }) {
   switch (phase) {
     case Phase.LOBBY:
       return <div className="magicpattern-default px-20">
-        <div className="background h-full" style={ {"background-color": "#00000078"}}>
+        <div className="background game-bg h-full">
           <h1
             className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-10 sm:pt-20 text-4xl text-center text-gray-300 tracking-tight">
             {gameId} Lobby
