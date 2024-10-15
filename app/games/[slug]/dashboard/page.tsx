@@ -136,34 +136,38 @@ export default function Page({ params }: { params: { slug: string } }) {
     <div className="relative overflow-x-auto">
       <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
         <caption
-          className="p-5 text-lg font-semibold text-left rtl:text-right text-gray-900 bg-white dark:text-white dark:bg-gray-800">
-          Dashboard for {params.slug}
-          <button
-            type="button"
-            className='h-8 px-2 text-md rounded-md bg-gray-700 hover:bg-green-800 text-white'
-            onClick={() => {
-              channelRequester.current?.onNext({
-                  data: Buffer.from(new CloudEvent<unknown>({
-                    id: crypto.randomUUID(),
-                    source: "https://snaptap.adombi.dev",
-                    type: "com.tapsnap.game_server.StartGame"
-                  }).toString()),
-                  metadata: createRoute(`tap-snap/${gameId}`)
-                }, false)
-            }}
-          >
-            Start
-          </button>
-          <button
-            type="button"
-            className='h-8 px-2 text-md rounded-md bg-gray-700 hover:bg-green-800 text-white'
-            onClick={() => fetch(`${process.env.NEXT_PUBLIC_HTTP_SERVER_HOST}/games/${gameId}/restart`)}
-          >
-            Restart
-          </button>
+          className="p-5 text-4xl font-semibold text-left rtl:text-right text-gray-900 bg-white dark:text-white dark:bg-gray-800 flux">
+          <div className="text-6xl">
+            Dashboard for {params.slug}
+          </div>
+          <div className="flex gap-2 pt-5">
+            <button
+              type="button"
+              className='px-10 py-3 rounded-xl text-white bg-gray-700 hover:bg-green-800'
+              onClick={() => {
+                channelRequester.current?.onNext({
+                    data: Buffer.from(new CloudEvent<unknown>({
+                      id: crypto.randomUUID(),
+                      source: "https://snaptap.adombi.dev",
+                      type: "com.tapsnap.game_server.StartGame"
+                    }).toString()),
+                    metadata: createRoute(`tap-snap/${gameId}`)
+                  }, false)
+              }}
+            >
+              Start
+            </button>
+            <button
+              type="button"
+              className='px-10 py-3 rounded-xl text-white bg-gray-700 hover:bg-green-800'
+              onClick={() => fetch(`${process.env.NEXT_PUBLIC_HTTP_SERVER_HOST}/games/${gameId}/restart`)}
+            >
+              Back to lobby
+            </button>
+          </div>
         </caption>
         <thead
-          className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+          className="text-lg text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
         <tr>
           <th scope="col" className="px-6 py-3">
             Player
@@ -182,19 +186,19 @@ export default function Page({ params }: { params: { slug: string } }) {
           </th>
         </tr>
         </thead>
-        <tbody>
+        <tbody className="text-2xl">
         {Object.entries((game?.results || {}) as Results).map(([player, results]) => (
           <tr key={player}>
             <th>
               {player}
             </th>
-            {results.map((result, i) => (
+            {results.concat([0, 0, 0]).slice(0, 3).map((result, i) => (
               <td key={`${player} - ${i}`}>
                 {result}
               </td>
             ))}
             <td>
-              {results.reduce((partialSum, a) => partialSum + a, 0)}
+              {results.concat([0, 0, 0]).slice(0, 3).reduce((partialSum, a) => partialSum + a, 0)}
             </td>
           </tr>
         ))}
