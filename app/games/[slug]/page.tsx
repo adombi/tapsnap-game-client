@@ -36,6 +36,11 @@ enum Phase {
   RESULTS = 'results'
 }
 
+interface PlayerOverallResult {
+  player: string,
+  overallResult: number
+}
+
 export default function Page({ params }: { params: { slug: string } }) {
   const gameId: string = params.slug
   const { player } = usePlayer();
@@ -172,34 +177,38 @@ export default function Page({ params }: { params: { slug: string } }) {
   }, [phase, model]);
 
   if (player === undefined) return <NameModal/>
-  if (requester === undefined || game === undefined) return <div>Loading game...</div>
+  if (requester === undefined || game === undefined) return <div className="magicpattern-default md:px-20 xl:px-60 disable-selection">
+    <div className="background game-bg h-full font-extrabold leading-none text-center lg:text-6xl md:text-5xl text-4xl text-gray-300 pt-10 sm:pt-20">
+      Loading<span className="loading">...</span>
+    </div>
+  </div>
+
+  function sumOf(results: number[]) {
+    return results.reduce((partialSum, a) => partialSum + a, 0);
+  }
 
   switch (phase) {
     case Phase.LOBBY:
-      return <div className="magicpattern-default px-20">
+      return <div className="magicpattern-default md:px-20 xl:px-60 disable-selection">
         <div className="background game-bg h-full">
-          <h1
-            className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-10 sm:pt-20 text-4xl text-center text-gray-300 tracking-tight">
+          <h1 className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-10 sm:pt-20 text-4xl text-center text-gray-300 tracking-tight">
             {gameId} Lobby
           </h1>
-          <h2
-            className="font-extrabold leading-none lg:text-4xl md:text-3xl text-2xl p-5 text-center text-gray-300 tracking-tight">
+          <h2 className="font-extrabold leading-none lg:text-4xl md:text-3xl text-2xl p-5 text-center text-gray-300 tracking-tight">
             Waiting for other players to join<span className="loading">...</span>
           </h2>
           <div className="font-extrabold leading-none lg:text-xl md:text-xl text-xl p-5 text-center text-gray-300 tracking-tight">Current players</div>
           <ul className="flex flex-col items-center gap-2 text-center w-full">
             {game.users.map((user: string) => (
-              <li
-                key={user}
-                className="text-2xl font-semibold me-2 px-2.5 py-1 w-64 rounded text-orange-500 bg-gray-900 border-4 border-orange-700">
-                  {user}
-                </li>
+              <li key={user} className="text-2xl font-semibold me-2 px-2.5 py-1 w-64 rounded text-orange-500 bg-gray-900 border-4 border-orange-700">
+                {user}
+              </li>
             ))}
           </ul>
         </div>
       </div>
     case Phase.COUNT_DOWN:
-      return <div className="font-extrabold leading-none pt-10 sm:pt-20 text-9xl text-center text-gray-300 tracking-tight magicpattern-default">
+      return <div className="font-extrabold leading-none pt-20 sm:pt-40 md:text-9xl text-7xl text-center text-gray-300 tracking-tight magicpattern-default disable-selection">
         <h1>{model as string}</h1>
       </div>
     case Phase.IN_PROGRESS:
@@ -221,22 +230,64 @@ export default function Page({ params }: { params: { slug: string } }) {
           reacted.current = true
         }
       }} className="h-full disable-selection">
-        <h1 className={`font-extrabold leading-none pt-10 sm:pt-20 text-9xl text-center text-gray-300 tracking-tight magicpattern-${phase.number} h-full`}>
+        <h1 className={`font-extrabold leading-none pt-20 sm:pt-40 md:text-9xl text-7xl text-center text-gray-300 tracking-tight magicpattern-${phase.number} h-full`}>
           Phase {phase.number}
         </h1>
       </div>
     case Phase.RESULTS:
-      return <div>
-        <h1>Results of {player}</h1>
-        {(model as Results)[player]?.map((reactionInMillis: number, index: number) => (
-          <ul key={index}>
-            <li>{reactionInMillis}</li>
-          </ul>
-        ))}
+      const results = (model as Results)[player];
+      const overallResults = Object.entries((game?.results || {}) as Results)
+        .map(([player, results]) => ({
+          player: player,
+          overallResult: sumOf(results)
+        } as PlayerOverallResult))
+        .sort((a, b) => a.overallResult < b.overallResult ? 1 : -1)
+      const playerResults: PlayerResults = {
+        results: results,
+        overallResult: sumOf(results),
+        position: overallResults
+          .map(value => value.player)
+          .indexOf(player) + 1
+      }
+
+      return <div className="magicpattern-3 md:px-20 xl:px-60 disable-selection">
+        <div className="background game-bg h-full">
+          <h1
+            className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-20 text-4xl text-center text-gray-300 tracking-tight">
+            <div>{player}</div>
+            <div className="py-20 xl:py-20">{playerResults.position}st</div>
+          </h1>
+          <div className="sm:px-20 md:px-10">
+            <table className="w-full text-sm text-left rtl:text-right text-gray-300 bg-opacity-75">
+              <thead className="text-lg uppercase bg-gray-700">
+                <tr>
+                  <th scope="col" className="px-6 py-3">
+                    Player
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    Overall Result
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="text-2xl bg-gray-900 bg-opacity-75 py-10">
+                {overallResults.map(r => (
+                  <tr key={r.player} className={r.player === player ? "bg-gray-600 border border-orange-700" : ""}>
+                    <th className={`px-6 py-2`}>
+                      {r.player}
+                    </th>
+                    <td className={`px-6 py-2`}>
+                      {r.overallResult}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
   }
   return <>
-      <p>Game: {gameId} - {phase}</p>
-      <p>Player: {player}</p>
-    </>
+    <p>Game: {gameId} - {phase}</p>
+    <p>Player: {player}</p>
+  </>
 }
