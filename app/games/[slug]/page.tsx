@@ -48,6 +48,7 @@ export default function Page({ params }: { params: { slug: string } }) {
   const [phase, setPhase] = useState<Phase>(Phase.LOBBY);
   const [model, setModel] = useState<unknown>(undefined);
   const [game, setGame] = useState<Game>();
+  const [reactionLimit, setReactionLimit] = useState(3)
   const requester = useRef<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>();
   const reacted = useRef(true)
   function createRoute(route?: string) {
@@ -107,6 +108,7 @@ export default function Page({ params }: { params: { slug: string } }) {
                   break;
                 case "Restarted":
                   setPhase(Phase.LOBBY)
+                  setReactionLimit(3)
                   break;
               }
               console.log(
@@ -214,7 +216,7 @@ export default function Page({ params }: { params: { slug: string } }) {
     case Phase.IN_PROGRESS:
       const phase = model as PhaseModel;
       return <div onClick={() => {
-        if (!reacted.current) {
+        if (!reacted.current && reactionLimit > 0) {
           requester.current?.onNext({
             data: Buffer.from(new CloudEvent<Reaction>({
               id: crypto.randomUUID(),
@@ -229,33 +231,43 @@ export default function Page({ params }: { params: { slug: string } }) {
           }, false)
           reacted.current = true
         }
+        setReactionLimit(reactionLimit - 1)
+        console.log(`REACTION LIMIT: ${reactionLimit}`)
       }} className="h-full disable-selection">
         <h1 className={`font-extrabold leading-none pt-20 sm:pt-40 md:text-9xl text-7xl text-center text-gray-300 tracking-tight magicpattern-${phase.number} h-full`}>
           Phase {phase.number}
         </h1>
       </div>
     case Phase.RESULTS:
-      const results = (model as Results)[player];
-      const overallResults = Object.entries((game?.results || {}) as Results)
+      const positionMapping = (pos: number) => {
+        switch (pos) {
+          case 1: return "1st"
+          case 2: return "2nd"
+          case 3: return "3rd"
+          default: return `${pos}th`
+        }
+      }
+
+      const overallResults = Object.entries(model as Results)
         .map(([player, results]) => ({
           player: player,
           overallResult: sumOf(results)
         } as PlayerOverallResult))
-        .sort((a, b) => a.overallResult < b.overallResult ? 1 : -1)
-      const playerResults: PlayerResults = {
-        results: results,
-        overallResult: sumOf(results),
-        position: overallResults
-          .map(value => value.player)
-          .indexOf(player) + 1
-      }
+        .filter(r => r.overallResult > 0)
+        .sort((a, b) => a.overallResult < b.overallResult ? -1 : 1)
+      const position = positionMapping(overallResults
+        .map(value => value.player)
+        .indexOf(player) + 1
+      )
 
       return <div className="magicpattern-3 md:px-20 xl:px-60 disable-selection">
         <div className="background game-bg h-full">
           <h1
             className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-20 text-4xl text-center text-gray-300 tracking-tight">
             <div>{player}</div>
-            <div className="py-20 xl:py-20">{playerResults.position}st</div>
+            <div className="py-20 xl:py-20">
+              {position}
+            </div>
           </h1>
           <div className="sm:px-20 md:px-10">
             <table className="w-full text-sm text-left rtl:text-right text-gray-300 bg-opacity-75">
