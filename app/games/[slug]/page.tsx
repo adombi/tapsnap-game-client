@@ -194,7 +194,7 @@ export default function Page({ params }: { params: { slug: string } }) {
       return <div className="magicpattern-default md:px-20 xl:px-60 disable-selection">
         <div className="background game-bg h-full">
           <h1 className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-10 sm:pt-20 text-4xl text-center text-gray-300 tracking-tight">
-            {gameId} Lobby
+            {gameId} Lobby Hello Ecoformers
           </h1>
           <h2 className="font-extrabold leading-none lg:text-4xl md:text-3xl text-2xl p-5 text-center text-gray-300 tracking-tight">
             Waiting for other players to join<span className="loading">...</span>
