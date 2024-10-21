@@ -48,7 +48,7 @@ export default function Page({ params }: { params: { slug: string } }) {
   const [phase, setPhase] = useState<Phase>(Phase.LOBBY);
   const [model, setModel] = useState<unknown>(undefined);
   const [game, setGame] = useState<Game>();
-  const [reactionLimit, setReactionLimit] = useState(3)
+  const [attempt, setAttempt] = useState(3)
   const requester = useRef<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>();
   const reacted = useRef(true)
   function createRoute(route?: string) {
@@ -104,7 +104,7 @@ export default function Page({ params }: { params: { slug: string } }) {
               break;
             case "Restarted":
               setPhase(Phase.LOBBY)
-              setReactionLimit(3)
+              setAttempt(3)
               break;
           }
           console.log(
@@ -220,7 +220,7 @@ export default function Page({ params }: { params: { slug: string } }) {
     case Phase.IN_PROGRESS:
       const phase = model as PhaseModel;
       return <div onClick={() => {
-        if (!reacted.current && reactionLimit > 0) {
+        if (!reacted.current && attempt > 0) {
           requester.current?.onNext({
             data: Buffer.from(new CloudEvent<Reaction>({
               id: crypto.randomUUID(),
@@ -235,12 +235,15 @@ export default function Page({ params }: { params: { slug: string } }) {
           }, false)
           reacted.current = true
         }
-        setReactionLimit(reactionLimit - 1)
-        console.log(`REACTION LIMIT: ${reactionLimit}`)
+        setAttempt(attempt - 1)
+        console.log(`REACTION LIMIT: ${attempt}`)
       }} className="h-full disable-selection">
         <h1 className={`font-extrabold leading-none pt-20 sm:pt-40 md:text-9xl text-7xl text-center text-gray-300 tracking-tight magicpattern-${phase.number} h-full`}>
           Phase {phase.number}
         </h1>
+        <div className="absolute top-0 right-0 p-3">
+          Attempt left: {Math.max(attempt, 0)}
+        </div>
       </div>
     case Phase.RESULTS:
       const positionMapping = (pos: number) => {
