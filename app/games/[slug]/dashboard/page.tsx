@@ -26,9 +26,15 @@ const connector = new RSocketConnector({
   }),
 });
 
+interface TableRow {
+  player: string,
+  results: number[],
+  overallResult: number
+}
+
 export default function Page({ params }: { params: { slug: string } }) {
   const gameId: string = params.slug
-  const [game, setGame] = useState<Game>()
+  const [game, setGame] = useState<Game>({id: "", users: [], results: {"": []}})
   const requester = useRef<Requestable & Cancellable & OnExtensionSubscriber>()
   const channelRequester = useRef<OnTerminalSubscriber & OnNextSubscriber & OnExtensionSubscriber & Requestable & Cancellable>()
   const connected = useRef<boolean>(false)
@@ -132,6 +138,27 @@ export default function Page({ params }: { params: { slug: string } }) {
     }
   }, [connected])
 
+  function sumOf(results: number[]) {
+    return results.reduce((partialSum, a) => partialSum + a, 0);
+  }
+
+  function resultValue(result: number) {
+    return result === 0 ? "-" : result
+  }
+
+  const overallResults = Object.entries(game?.results as Results)
+  .map(([player, results]) => ({
+    player: player,
+    results: results.concat([0, 0, 0]).slice(0, 3),
+    overallResult: sumOf(results)
+  } as TableRow))
+  // .filter(r => r.overallResult > 0)
+  .sort((a, b) => {
+    if (a.overallResult === 0) return 1
+    if (b.overallResult === 0) return -1
+    return a.overallResult < b.overallResult ? -1 : 1
+  })
+
   return <div>
     <div className="relative overflow-x-auto">
       <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
@@ -187,18 +214,18 @@ export default function Page({ params }: { params: { slug: string } }) {
         </tr>
         </thead>
         <tbody className="text-2xl">
-        {Object.entries((game?.results || {}) as Results).map(([player, results]) => (
-          <tr key={player}>
+        {overallResults.map(row => (
+          <tr key={row.player}>
             <th>
-              {player}
+              {row.player}
             </th>
-            {results.concat([0, 0, 0]).slice(0, 3).map((result, i) => (
-              <td key={`${player} - ${i}`}>
-                {result}
+            {row.results.map((result, i) => (
+              <td key={`${row.player} - ${i}`}>
+                {resultValue(result)}
               </td>
             ))}
             <td>
-              {results.concat([0, 0, 0]).slice(0, 3).reduce((partialSum, a) => partialSum + a, 0)}
+              {resultValue(row.overallResult)}
             </td>
           </tr>
         ))}
