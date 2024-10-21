@@ -63,72 +63,74 @@ export default function Page({ params }: { params: { slug: string } }) {
     return compositeMetaData;
   }
 
+  async function connectRsocket() {
+    const rsocket = await connector.connect()
+    requester.current = rsocket.requestChannel(
+      {
+        data: Buffer.from(new CloudEvent<undefined>({
+          id: crypto.randomUUID(),
+          source: "https://snaptap.adombi.dev",
+          type: "com.tapsnap.game_server.Connect"
+        }).toString()),
+        metadata: createRoute(`tap-snap/${gameId}`)
+      },
+      9999,
+      false,
+      {
+        onError: (e) => {
+          console.error(e);
+        },
+        onNext: (payload, isComplete) => {
+          const cloudEvent: CloudEvent<unknown> = JSON.parse(payload.data?.toString() || '')
+          switch (cloudEvent.type) {
+            case "Joined":
+              setGame(cloudEvent.data as Game)
+              break;
+            case "CountDown":
+              setPhase(Phase.COUNT_DOWN)
+              setModel(cloudEvent.data as number)
+              break;
+            case "InProgress":
+              setPhase(Phase.IN_PROGRESS)
+              setModel({
+                number: cloudEvent.data as number,
+                eventReceivedEpoch: Date.now()
+              } as PhaseModel)
+              reacted.current = false
+              break;
+            case "Results":
+              setPhase(Phase.RESULTS)
+              setModel(cloudEvent.data as Results)
+              break;
+            case "Restarted":
+              setPhase(Phase.LOBBY)
+              setReactionLimit(3)
+              break;
+          }
+          console.log(
+            `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
+          );
+        },
+        onComplete: () => {
+          console.log('Completed!');
+        },
+        onExtension: () => {
+        },
+        request: (n) => {
+          console.log(`request(${n})`);
+        },
+        cancel: () => {
+          connectRsocket()
+          console.warn('Canceled!');
+        },
+      }
+    )
+  }
+
   useEffect(() => {
     let ignore = false
 
     if (!ignore && !connected) {
-      const connectRsocket = async () => {
-        const rsocket = await connector.connect()
-        requester.current = rsocket.requestChannel(
-          {
-            data: Buffer.from(new CloudEvent<undefined>({
-              id: crypto.randomUUID(),
-              source: "https://snaptap.adombi.dev",
-              type: "com.tapsnap.game_server.Connect"
-            }).toString()),
-            metadata: createRoute(`tap-snap/${gameId}`)
-          },
-          9999,
-          false,
-          {
-            onError: (e) => {
-              console.error(e);
-            },
-            onNext: (payload, isComplete) => {
-              const cloudEvent: CloudEvent<unknown> = JSON.parse(payload.data?.toString() || '')
-              switch (cloudEvent.type) {
-                case "Joined":
-                  setGame(cloudEvent.data as Game)
-                  break;
-                case "CountDown":
-                  setPhase(Phase.COUNT_DOWN)
-                  setModel(cloudEvent.data as number)
-                  break;
-                case "InProgress":
-                  setPhase(Phase.IN_PROGRESS)
-                  setModel({
-                    number: cloudEvent.data as number,
-                    eventReceivedEpoch: Date.now()
-                  } as PhaseModel)
-                  reacted.current = false
-                  break;
-                case "Results":
-                  setPhase(Phase.RESULTS)
-                  setModel(cloudEvent.data as Results)
-                  break;
-                case "Restarted":
-                  setPhase(Phase.LOBBY)
-                  setReactionLimit(3)
-                  break;
-              }
-              console.log(
-                `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
-              );
-            },
-            onComplete: () => {
-              console.log('Completed!');
-            },
-            onExtension: () => {
-            },
-            request: (n) => {
-              console.log(`request(${n})`);
-            },
-            cancel: () => {
-              console.warn('Canceled!');
-            },
-          }
-        )
-      }
       connectRsocket()
         .then(() => setConnected(true))
         .catch(console.error)
@@ -180,7 +182,7 @@ export default function Page({ params }: { params: { slug: string } }) {
 
   if (player === undefined) return <NameModal/>
   if (requester === undefined || game === undefined) return <div className="magicpattern-default md:px-20 xl:px-60 disable-selection">
-    <div className="background game-bg h-full font-extrabold leading-none text-center lg:text-6xl md:text-5xl text-4xl text-gray-300 pt-10 sm:pt-20">
+    <div className="game-bg h-full font-extrabold leading-none text-center lg:text-6xl md:text-5xl text-4xl text-gray-300 pt-10 sm:pt-20">
       Loading<span className="loading">...</span>
     </div>
   </div>
@@ -191,8 +193,8 @@ export default function Page({ params }: { params: { slug: string } }) {
 
   switch (phase) {
     case Phase.LOBBY:
-      return <div className="magicpattern-default md:px-20 xl:px-60 disable-selection">
-        <div className="background game-bg h-full">
+      return <div className="flex magicpattern-default h-vdh md:px-20 xl:px-60 disable-selection">
+        <div className="flex flex-col game-bg w-full">
           <h1 className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-10 sm:pt-20 text-4xl text-center text-gray-300 tracking-tight">
             {gameId} Lobby
           </h1>
@@ -200,13 +202,15 @@ export default function Page({ params }: { params: { slug: string } }) {
             Waiting for other players to join<span className="loading">...</span>
           </h2>
           <div className="font-extrabold leading-none lg:text-xl md:text-xl text-xl p-5 text-center text-gray-300 tracking-tight">Current players</div>
-          <ul className="flex flex-col items-center gap-2 text-center w-full">
-            {game.users.map((user: string) => (
-              <li key={user} className="text-2xl font-semibold me-2 px-2.5 py-1 w-64 rounded text-orange-500 bg-gray-900 border-4 border-orange-700">
-                {user}
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-y-scroll">
+            <ul className="flex flex-col items-center gap-2 text-center w-full h-auto overflow-y-scroll pb-2.5">
+              {game.users.map((user: string) => (
+                <li key={user} className="text-2xl font-semibold me-2 px-2.5 py-1 w-64 rounded text-orange-500 bg-gray-900 border-4 border-orange-700">
+                  {user}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     case Phase.COUNT_DOWN:
@@ -261,7 +265,7 @@ export default function Page({ params }: { params: { slug: string } }) {
       )
 
       return <div className="magicpattern-3 md:px-20 xl:px-60 disable-selection">
-        <div className="background game-bg h-full">
+        <div className="game-bg h-full">
           <h1
             className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-20 text-4xl text-center text-gray-300 tracking-tight">
             <div>{player}</div>
