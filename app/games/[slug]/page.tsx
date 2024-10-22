@@ -16,9 +16,9 @@ import usePlayer from "@/app/use-player";
 import NameModal from "@/app/name-modal";
 import Lobby from "@/app/games/[slug]/Lobby";
 import CountDown from "@/app/games/[slug]/CountDown";
-import AttemptLeft from "@/app/games/[slug]/AttemptLeft";
 import PlayerResults from "@/app/games/[slug]/PlayerResults";
 import InProgress from "@/app/games/[slug]/InProgress";
+import generateCloudEvent from "@/app/games/[slug]/CloudEventGenerator";
 
 const connector = new RSocketConnector({
   setup: {
@@ -67,19 +67,12 @@ export default function Page({ params }: { params: { slug: string } }) {
     const rsocket = await connector.connect()
     requester.current = rsocket.requestChannel(
       {
-        data: Buffer.from(new CloudEvent<undefined>({
-          id: crypto.randomUUID(),
-          source: "https://snaptap.adombi.dev",
-          type: "com.tapsnap.game_server.Connect"
-        }).toString()),
+        data: Buffer.from(generateCloudEvent("com.tapsnap.game_server.Connect").toString()),
         metadata: createRoute(`tap-snap/${gameId}`)
       },
       9999,
       false,
       {
-        onError: (e) => {
-          console.error(e);
-        },
         onNext: (payload, isComplete) => {
           const cloudEvent: CloudEvent<unknown> = JSON.parse(payload.data?.toString() || '')
           switch (cloudEvent.type) {
@@ -88,37 +81,31 @@ export default function Page({ params }: { params: { slug: string } }) {
               break;
             case "CountDown":
               setPhase(Phase.COUNT_DOWN)
-              setModel(cloudEvent.data as number)
+              setModel(cloudEvent.data)
               break;
             case "InProgress":
               setPhase(Phase.IN_PROGRESS)
               setModel({
-                number: cloudEvent.data as number,
+                number: cloudEvent.data,
                 eventReceivedEpoch: Date.now()
               } as PhaseModel)
               reacted.current = false
               break;
             case "Results":
               setPhase(Phase.RESULTS)
-              setModel(cloudEvent.data as Results)
+              setModel(cloudEvent.data)
               break;
             case "Restarted":
               setPhase(Phase.LOBBY)
               setAttempt(3)
               break;
           }
-          console.log(
-            `payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`
-          );
+          console.log(`payload[data: ${payload.data}; metadata: ${payload.metadata}]|${isComplete}`);
         },
-        onComplete: () => {
-          console.log('Completed!');
-        },
-        onExtension: () => {
-        },
-        request: (n) => {
-          console.log(`request(${n})`);
-        },
+        onError: (e) => console.error(e),
+        onComplete: () => console.log('Completed!'),
+        onExtension: () => {},
+        request: (n) => console.log(`request(${n})`),
         cancel: () => {
           connectRsocket()
           console.warn('Canceled!');
@@ -145,14 +132,7 @@ export default function Page({ params }: { params: { slug: string } }) {
   useEffect(() => {
     if (connected && player) {
       requester.current!.onNext({
-        data: Buffer.from(new CloudEvent<JoinRequest>({
-          id: crypto.randomUUID(),
-          source: "https://snaptap.adombi.dev",
-          type: "com.tapsnap.game_server.JoinRequest",
-          data: {
-            "playerName": player
-          }
-        }).toString()),
+        data: Buffer.from(generateCloudEvent("com.tapsnap.game_server.JoinRequest", { "playerName": player }).toString()),
         metadata: createRoute(`tap-snap/${gameId}`)
       }, false)
     }
@@ -162,18 +142,14 @@ export default function Page({ params }: { params: { slug: string } }) {
     if (phase === Phase.IN_PROGRESS) {
       setTimeout(() => {
         if (!reacted.current) {
-          requester.current?.onNext({
-            data: Buffer.from(new CloudEvent<Reaction>({
-              id: crypto.randomUUID(),
-              source: "https://snaptap.adombi.dev",
-              type: "com.tapsnap.game_server.React",
-              data: {
+          requester.current?.onNext(
+            {
+              data: Buffer.from(generateCloudEvent("com.tapsnap.game_server.React", {
                 playerName: player!,
                 respondTimeMillis: 1000
-              }
-            }).toString()),
-            metadata: createRoute(`tap-snap/${gameId}`)
-          }, false)
+              }).toString()),
+              metadata: createRoute(`tap-snap/${gameId}`)
+            }, false)
           reacted.current = true
         }
       }, 1000)
@@ -192,14 +168,9 @@ export default function Page({ params }: { params: { slug: string } }) {
     return () => {
       if (!reacted.current && attempt > 0) {
         requester.current?.onNext({
-          data: Buffer.from(new CloudEvent<Reaction>({
-            id: crypto.randomUUID(),
-            source: "https://snaptap.adombi.dev",
-            type: "com.tapsnap.game_server.React",
-            data: {
-              playerName: player,
-              respondTimeMillis: Math.min(Date.now() - phase.eventReceivedEpoch, 1000)
-            }
+          data: Buffer.from(generateCloudEvent("com.tapsnap.game_server.React", {
+            playerName: player,
+            respondTimeMillis: Math.min(Date.now() - phase.eventReceivedEpoch, 1000)
           }).toString()),
           metadata: createRoute(`tap-snap/${gameId}`)
         }, false)
