@@ -14,6 +14,11 @@ import {
 } from "rsocket-core/dist/RSocket";
 import usePlayer from "@/app/use-player";
 import NameModal from "@/app/name-modal";
+import Lobby from "@/app/games/[slug]/Lobby";
+import CountDown from "@/app/games/[slug]/CountDown";
+import AttemptLeft from "@/app/games/[slug]/AttemptLeft";
+import PlayerResults from "@/app/games/[slug]/PlayerResults";
+import InProgress from "@/app/games/[slug]/InProgress";
 
 const connector = new RSocketConnector({
   setup: {
@@ -34,11 +39,6 @@ enum Phase {
   COUNT_DOWN = 'count_down',
   IN_PROGRESS = 'in_progress',
   RESULTS = 'results'
-}
-
-interface PlayerOverallResult {
-  player: string,
-  overallResult: number
 }
 
 export default function Page({ params }: { params: { slug: string } }) {
@@ -181,132 +181,42 @@ export default function Page({ params }: { params: { slug: string } }) {
   }, [phase, model]);
 
   if (player === undefined) return <NameModal/>
-  if (requester === undefined || game === undefined) return <div className="magicpattern-default md:px-20 xl:px-60 disable-selection">
-    <div className="game-bg h-full font-extrabold leading-none text-center lg:text-6xl md:text-5xl text-4xl text-gray-300 pt-10 sm:pt-20">
-      Loading<span className="loading">...</span>
+  if (requester === undefined || game === undefined)
+    return <div className="magicpattern-default md:px-20 xl:px-60 disable-selection">
+      <div className="game-bg h-full font-extrabold leading-none text-center lg:text-6xl md:text-5xl text-4xl text-gray-300 pt-10 sm:pt-20">
+        Loading<span className="loading">...</span>
+      </div>
     </div>
-  </div>
 
-  function sumOf(results: number[]) {
-    return results.reduce((partialSum, a) => partialSum + a, 0);
+  function onReact(phase: PhaseModel, player: string) {
+    return () => {
+      if (!reacted.current && attempt > 0) {
+        requester.current?.onNext({
+          data: Buffer.from(new CloudEvent<Reaction>({
+            id: crypto.randomUUID(),
+            source: "https://snaptap.adombi.dev",
+            type: "com.tapsnap.game_server.React",
+            data: {
+              playerName: player,
+              respondTimeMillis: Math.min(Date.now() - phase.eventReceivedEpoch, 1000)
+            }
+          }).toString()),
+          metadata: createRoute(`tap-snap/${gameId}`)
+        }, false)
+        reacted.current = true
+      }
+      setAttempt(attempt - 1)
+    };
   }
 
   switch (phase) {
     case Phase.LOBBY:
-      return <div className="flex magicpattern-default h-vdh md:px-20 xl:px-60 disable-selection">
-        <div className="flex flex-col game-bg w-full">
-          <h1 className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-10 sm:pt-20 text-4xl text-center text-gray-300 tracking-tight">
-            {gameId} Lobby
-          </h1>
-          <h2 className="font-extrabold leading-none lg:text-4xl md:text-3xl text-2xl p-5 text-center text-gray-300 tracking-tight">
-            Waiting for other players to join<span className="loading">...</span>
-          </h2>
-          <div className="font-extrabold leading-none lg:text-xl md:text-xl text-xl p-5 text-center text-gray-300 tracking-tight">Current players</div>
-          <div className="overflow-y-scroll">
-            <ul className="flex flex-col items-center gap-2 text-center w-full h-auto overflow-y-scroll pb-2.5">
-              {game.users.map((user: string) => (
-                <li key={user} className="text-2xl font-semibold me-2 px-2.5 py-1 w-64 rounded text-orange-500 bg-gray-900 border-4 border-orange-700">
-                  {user}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
+      return <Lobby gameId={gameId} users={game.users} />
     case Phase.COUNT_DOWN:
-      return <div className="font-extrabold leading-none pt-20 sm:pt-40 md:text-9xl text-7xl text-center text-gray-300 tracking-tight magicpattern-default disable-selection">
-        <h1>{model as string}</h1>
-      </div>
+      return <CountDown text={model as string} attemptLeft={attempt} />
     case Phase.IN_PROGRESS:
-      const phase = model as PhaseModel;
-      return <div onClick={() => {
-        if (!reacted.current && attempt > 0) {
-          requester.current?.onNext({
-            data: Buffer.from(new CloudEvent<Reaction>({
-              id: crypto.randomUUID(),
-              source: "https://snaptap.adombi.dev",
-              type: "com.tapsnap.game_server.React",
-              data: {
-                playerName: player,
-                respondTimeMillis: Math.min(Date.now() - phase.eventReceivedEpoch, 1000)
-              }
-            }).toString()),
-            metadata: createRoute(`tap-snap/${gameId}`)
-          }, false)
-          reacted.current = true
-        }
-        setAttempt(attempt - 1)
-        console.log(`REACTION LIMIT: ${attempt}`)
-      }} className="h-full disable-selection">
-        <h1 className={`font-extrabold leading-none pt-20 sm:pt-40 md:text-9xl text-7xl text-center text-gray-300 tracking-tight magicpattern-${phase.number} h-full`}>
-          Phase {phase.number}
-        </h1>
-        <div className="absolute top-0 right-0 p-3">
-          Attempt left: {Math.max(attempt, 0)}
-        </div>
-      </div>
+      return <InProgress phase={model as PhaseModel} attempt={attempt} onClick={onReact(model as PhaseModel, player)} />
     case Phase.RESULTS:
-      const positionMapping = (pos: number) => {
-        switch (pos) {
-          case 1: return "1st"
-          case 2: return "2nd"
-          case 3: return "3rd"
-          default: return `${pos}th`
-        }
-      }
-
-      const overallResults = Object.entries(model as Results)
-        .map(([player, results]) => ({
-          player: player,
-          overallResult: sumOf(results)
-        } as PlayerOverallResult))
-        .filter(r => r.overallResult > 0)
-        .sort((a, b) => a.overallResult < b.overallResult ? -1 : 1)
-      const position = positionMapping(overallResults
-        .map(value => value.player)
-        .indexOf(player) + 1
-      )
-
-      return <div className="magicpattern-3 md:px-20 xl:px-60 disable-selection">
-        <div className="game-bg h-full">
-          <h1
-            className="font-extrabold leading-none lg:text-6xl md:text-5xl pt-20 text-4xl text-center text-gray-300 tracking-tight">
-            <div>{player}</div>
-            <div className="py-20 xl:py-20">
-              {position}
-            </div>
-          </h1>
-          <div className="sm:px-20 md:px-10">
-            <table className="w-full text-sm text-left rtl:text-right text-gray-300 bg-opacity-75">
-              <thead className="text-lg uppercase bg-gray-700">
-                <tr>
-                  <th scope="col" className="px-6 py-3">
-                    Player
-                  </th>
-                  <th scope="col" className="px-6 py-3">
-                    Overall Result
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="text-2xl bg-gray-900 bg-opacity-75 py-10">
-                {overallResults.map(r => (
-                  <tr key={r.player} className={r.player === player ? "bg-gray-600 border border-orange-700" : ""}>
-                    <th className={`px-6 py-2`}>
-                      {r.player}
-                    </th>
-                    <td className={`px-6 py-2`}>
-                      {r.overallResult}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      return <PlayerResults results={model as Results} player={player}/>
   }
-  return <>
-    <p>Game: {gameId} - {phase}</p>
-    <p>Player: {player}</p>
-  </>
 }
